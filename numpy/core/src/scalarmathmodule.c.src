@@ -11,6 +11,7 @@
 #include "numpy/ufuncobject.h"
 #include "numpy/arrayscalars.h"
 
+#include "numpy/npy_math.h"
 
 /** numarray adapted routines.... **/
 
@@ -993,13 +994,44 @@ static PyObject *
 }
 /**end repeat**/
 
+#define LONGDOUBLE_PREC 20
+static PyObject*
+PyLong_FromLongDouble(npy_longdouble x)
+{
+    /*
+     * Given that a long double integral part may not fit in a 64 bits integer,
+     * we would need arbitrary integer support to do this correctly. Instead,
+     * we pass through strings - much slower but much easier as well
+     */
+    if (!npy_isfinite(x) || ((x < NPY_MAX_INT64) && (x > NPY_MIN_INT64)) ) {
+        return PyLong_FromDouble((double)x);
+    } else {
+        char buf[128];
+        size_t st;
+        char *dot;
+
+        st = snprintf(buf, sizeof(buf), "%2.20Lf", x);
+        if (st >= sizeof(buf)) {
+            return NULL;
+        }
+
+        /* Strip everything after the dot, including the dot itself */
+        dot = strchr(buf, '.');
+        if (dot != NULL) {
+            *dot = '\0';
+        }
+        return PyLong_FromString(buf, NULL, 10);
+    }
+}
+#undef LONDOUBLE_PREC
+
 /**begin repeat
  *
  * #name=(byte,ubyte,short,ushort,int,uint,long,ulong,longlong,ulonglong,float,double,longdouble,cfloat,cdouble,clongdouble)*2#
  * #Name=(Byte,UByte,Short,UShort,Int,UInt,Long,ULong,LongLong,ULongLong,Float,Double,LongDouble,CFloat,CDouble,CLongDouble)*2#
  * #cmplx=(,,,,,,,,,,,,,.real,.real,.real)*2#
  * #which=long*16,float*16#
- * #func=(PyLong_FromLongLong, PyLong_FromUnsignedLongLong)*5,PyLong_FromDouble*6,PyFloat_FromDouble*16#
+ * #func=(PyLong_FromLongLong, PyLong_FromUnsignedLongLong)*5,PyLong_FromDouble*2,PyLong_FromLongDouble, PyLong_FromDouble*3,PyFloat_FromDouble*16#
  */
 static PyObject *
 @name@_@which@(PyObject *obj)
